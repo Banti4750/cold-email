@@ -1,143 +1,223 @@
-require('dotenv').config();
-const EmailService = require('./src/services/emailService');
-const fs = require('fs').promises;
-const path = require('path');
+#!/usr/bin/env node
 
-class EmailSenderApp {
+const SimpleEmailService = require('./src/services/emailService');
+const fs = require('fs').promises;
+const readline = require('readline');
+
+class JobApplicationSender {
   constructor() {
-    this.emailService = new EmailService();
+    this.emailService = new SimpleEmailService();
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
   }
 
-  async init() {
-    console.log('📧 Email Sender Application');
-    console.log('===========================\n');
+  // Your personal information (UPDATE THESE)
+  getApplicantData() {
+    return {
+      applicantName: 'Banti Kumar', // ← Change to your name
+      phoneNumber: '+91 6203818460', // ← Change to your phone
+      emailAddress: 'bantikumar6203818460@example.com', // ← Change to your email
+      linkedinUrl: 'https://www.linkedin.com/in/banti-kumar-5b1109259/', // ← Change to your LinkedIn
+      githubUrl: 'https://github.com/Banti4750' ,
+      portfolioUrl: 'https://banti-dev.vercel.app/'// ← Change to your GitHub
+    };
+  }
+
+  async initialize() {
+    console.log('\n🚀 Job Application Email Sender');
+    console.log('================================\n');
 
     // Verify email connection
     const isConnected = await this.emailService.verifyConnection();
     if (!isConnected) {
-      console.log('❌ Exiting application due to connection issues');
+      console.log('\n❌ Please fix your email configuration and try again.');
+      console.log('📁 Check your .env file and make sure EMAIL_USER and EMAIL_PASS are correct.');
+      this.rl.close();
       process.exit(1);
     }
+
+    // Check resume
+    await this.emailService.checkResumeAttachment();
   }
 
-  async sendEmailsFromArray(emailArray, subject, htmlContent, textContent = '') {
-    console.log('\n🚀 Sending emails from provided array...');
+  async showMainMenu() {
+    console.log('\n📋 MAIN MENU');
+    console.log('===========');
+    console.log('1. Send applications from emails.json');
+    console.log('2. Send to a single email');
+    console.log('3. Preview email content');
+    console.log('4. Exit');
 
-    const result = await this.emailService.sendBulkEmails(
-      emailArray,
-      subject,
-      htmlContent,
-      textContent
-    );
+    const choice = await this.question('Choose option (1-4): ');
 
-    this.displayResults(result);
-    return result;
+    switch(choice) {
+      case '1':
+        await this.sendFromFile();
+        break;
+      case '2':
+        await this.sendSingleEmail();
+        break;
+      case '3':
+        await this.previewEmail();
+        break;
+      case '4':
+        console.log('👋 Goodbye!');
+        this.rl.close();
+        process.exit(0);
+        break;
+      default:
+        console.log('❌ Invalid choice');
+    }
+
+    // Return to menu
+    await this.showMainMenu();
   }
 
-  async sendEmailsFromFile(filePath, subject, htmlContent, textContent = '') {
-    console.log(`\n📄 Reading emails from file: ${filePath}`);
-
+  async sendFromFile() {
     try {
-      const data = await fs.readFile(filePath, 'utf8');
-      const emailArray = JSON.parse(data);
+      const data = await fs.readFile('./emails.json', 'utf8');
+      const emailList = JSON.parse(data);
 
-      if (!Array.isArray(emailArray)) {
-        throw new Error('File must contain a JSON array of emails');
+      if (!Array.isArray(emailList)) {
+        throw new Error('emails.json must contain a JSON array');
       }
 
-      return await this.sendEmailsFromArray(emailArray, subject, htmlContent, textContent);
+      console.log(`\n📧 Found ${emailList.length} email(s) in emails.json`);
+      console.log('First few emails:', emailList.slice(0, 3).join(', '), emailList.length > 3 ? '...' : '');
+
+      const confirm = await this.question(`\nSend applications to these ${emailList.length} email(s)? (yes/no): `);
+
+      if (confirm.toLowerCase() !== 'yes') {
+        console.log('❌ Operation cancelled');
+        return;
+      }
+
+      const applicantData = this.getApplicantData();
+      const result = await this.emailService.sendBulkApplications(emailList, applicantData);
+
+      this.displayResults(result);
+
     } catch (error) {
-      console.error(`❌ Error reading file: ${error.message}`);
-      return null;
+      console.error(`❌ Error: ${error.message}`);
+      console.log('💡 Make sure emails.json exists and contains a valid JSON array');
     }
   }
 
-  async sendTemplateEmails(emailArray, subject, templateName, templateData) {
-    console.log(`\n🎨 Sending template emails (${templateName})...`);
+  async sendSingleEmail() {
+    console.log('\n✉️ Send to Single Email');
+    console.log('=====================');
 
-    const results = [];
-    for (const email of emailArray) {
-      const result = await this.emailService.sendTemplateEmail(
-        email,
-        subject,
-        templateName,
-        templateData
-      );
-      results.push(result);
+    const email = await this.question('Enter recipient email: ');
 
-      // Small delay between emails
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.log('❌ Invalid email format');
+      return;
     }
 
-    this.displayTemplateResults(results);
-    return results;
+    const confirm = await this.question(`Send application to ${email}? (yes/no): `);
+
+    if (confirm.toLowerCase() !== 'yes') {
+      console.log('❌ Operation cancelled');
+      return;
+    }
+
+    const applicantData = this.getApplicantData();
+    const result = await this.emailService.sendApplication(email, applicantData);
+
+    console.log('\n📊 Result:');
+    if (result.success) {
+      console.log('✅ Email sent successfully!');
+    } else {
+      console.log('❌ Failed to send email:', result.error);
+    }
+  }
+
+  async previewEmail() {
+    console.log('\n👁️ Email Preview');
+    console.log('===============');
+
+    const applicantData = this.getApplicantData();
+    console.log('\nUsing applicant data:');
+    console.log(`Name: ${applicantData.applicantName}`);
+    console.log(`Email: ${applicantData.emailAddress}`);
+    console.log(`Phone: ${applicantData.phoneNumber}`);
+
+    const confirm = await this.question('\nGenerate preview? (yes/no): ');
+
+    if (confirm.toLowerCase() === 'yes') {
+      await this.emailService.previewEmail(applicantData);
+      console.log('\n✅ Preview generated. Check email-preview.html and email-preview.txt files.');
+    }
   }
 
   displayResults(result) {
-    console.log('\n📊 Email Sending Results');
-    console.log('=======================');
+    console.log('\n📊 SENDING RESULTS');
+    console.log('=================');
     console.log(`Total emails: ${result.total}`);
-    console.log(`Successfully sent: ${result.sent}`);
-    console.log(`Failed: ${result.failed}`);
-    console.log(`Success rate: ${result.summary.successRate}`);
-    console.log(`Failure rate: ${result.summary.failureRate}`);
+    console.log(`✅ Successful: ${result.sent}`);
+    console.log(`❌ Failed: ${result.failed}`);
+    console.log(`📈 Success rate: ${result.summary.successRate}`);
 
     if (result.failed > 0) {
-      console.log('\n❌ Failed emails:');
+      console.log('\nFailed emails:');
       result.results
         .filter(r => !r.success)
-        .forEach(r => console.log(`  - ${r.email}: ${r.error}`));
+        .forEach((r, i) => console.log(`${i+1}. ${r.email}: ${r.error}`));
+    }
+
+    console.log('\n✅ Process completed!');
+  }
+
+  question(prompt) {
+    return new Promise(resolve => {
+      this.rl.question(prompt, answer => {
+        resolve(answer.trim());
+      });
+    });
+  }
+
+  async start() {
+    await this.initialize();
+
+    console.log('\n📝 IMPORTANT: Update your personal information');
+    console.log('===========================================');
+    console.log('1. Open index.js');
+    console.log('2. Find the getApplicantData() method');
+    console.log('3. Update with your details:');
+    console.log('   - Your name');
+    console.log('   - Your phone number');
+    console.log('   - Your email');
+    console.log('   - Your LinkedIn URL');
+    console.log('   - Your GitHub URL');
+    console.log('\n4. Add recruiter emails to emails.json');
+    console.log('5. Place your resume as resume.pdf in project root\n');
+
+    const ready = await this.question('Have you updated your details? (yes/no): ');
+
+    if (ready.toLowerCase() === 'yes') {
+      await this.showMainMenu();
+    } else {
+      console.log('\n⚠️ Please update your details first.');
+      console.log('💡 Open index.js and emails.json to make changes.');
+      this.rl.close();
     }
   }
-
-  displayTemplateResults(results) {
-    const successful = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
-
-    console.log('\n📊 Template Email Results');
-    console.log('========================');
-    console.log(`Total: ${results.length}`);
-    console.log(`Successful: ${successful}`);
-    console.log(`Failed: ${failed}`);
-  }
-}
-
-// Example usage
-async function main() {
-  const app = new EmailSenderApp();
-  await app.init();
-
-  // Example 1: Send emails from an array
-//   const emailArray = [
-//     'user1@example.com',
-//     'user2@example.com',
-//     'user3@example.com'
-//   ];
-
-  const subject = 'Hello from Node.js Email Sender!';
-  const htmlContent = `
-    <h1>Hello there! 👋</h1>
-    <p>This is a test email sent from our Node.js email sender application.</p>
-    <p>Feel free to customize this message!</p>
-    <hr>
-    <p><small>This is an automated message. Please do not reply.</small></p>
-  `;
-
-//   // Send bulk emails
-//   await app.sendEmailsFromArray(emailArray, subject, htmlContent);
-
-  // Example 2: Send emails from a JSON file
-  await app.sendEmailsFromFile('./emails.json', subject, htmlContent);
-
-  // Example 3: Send template emails
-  // const templateData = { name: 'John Doe' };
-  // await app.sendTemplateEmails(emailArray, 'Welcome!', 'welcome', templateData);
 }
 
 // Run the application
-if (require.main === module) {
-  main().catch(console.error);
+async function main() {
+  try {
+    const app = new JobApplicationSender();
+    await app.start();
+  } catch (error) {
+    console.error('❌ Application error:', error);
+    process.exit(1);
+  }
 }
 
-// Export for use in other files
-module.exports = EmailSenderApp;
+// Start the application
+main();
