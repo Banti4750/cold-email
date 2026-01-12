@@ -1,0 +1,21 @@
+{
+  "name": "email-sender",
+  "version": "1.0.0",
+  "description": "Node.js application for sending emails to multiple recipients",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node test.js"
+  },
+  "keywords": ["email", "nodemailer", "bulk-email"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "nodemailer": "^6.9.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
