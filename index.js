@@ -18,7 +18,7 @@ class JobApplicationSender {
     return {
       applicantName: 'Banti Kumar', // ← Change to your name
       phoneNumber: '+91 6203818460', // ← Change to your phone
-      emailAddress: 'bantikumar6203818460@example.com', // ← Change to your email
+      emailAddress: 'bantikumar6203818460@gmail.com', // ← Change to your email
       linkedinUrl: 'https://www.linkedin.com/in/banti-kumar-5b1109259/', // ← Change to your LinkedIn
       githubUrl: 'https://github.com/Banti4750' ,
       portfolioUrl: 'https://banti-dev.vercel.app/'// ← Change to your GitHub

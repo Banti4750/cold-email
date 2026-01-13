@@ -6,7 +6,7 @@ async function testEmailSending() {
 
   // Test with a small array
   const testEmails = [
-    'karishmacair47050@gmail.com'
+    'test@gmail.com'
   ];
 
   const subject = 'Test Email';
@@ -17,3 +17,4 @@ async function testEmailSending() {
 }
 
 testEmailSending().catch(console.error);
+
